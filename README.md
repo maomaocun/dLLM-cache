@@ -10,7 +10,7 @@ Official PyTorch implementation of the paper **["dLLM-Cache: Accelerating Diffus
 ## ✨️ Key Highlights
 
 ![radar_speed](./asset/radar.png)
-- **supported model**: Dream,LLaDA,LLaDA-V
+- **Currently supported models**: Dream,LLaDA,LLaDA-V
 - **Speedup**: Achieves up to **9.1x** speedup over standard dLLM pipelines, with **no performance loss** on most tasks.
 - **Evaluation**: Evaluated on **[LLaDA 8B](https://arxiv.org/abs/2502.09992)** and **[Dream 7B](https://hkunlp.github.io/blog/2025/dream/)**.
 - **Latency**: Approaches ARM-level inference speeds in many scenarios.
