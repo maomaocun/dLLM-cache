@@ -1,7 +1,7 @@
 import time
 from datetime import datetime
 from dllm_cache.cache import dLLMCache, dLLMCacheConfig
-from dllm_cache.hook import register_cache_Dream, logout_cache_Dream
+from dllm_cache.hooks import register_cache_Dream, logout_cache_Dream
 from dataclasses import asdict
 from transformers import AutoModel, AutoTokenizer
 import torch
