@@ -4,7 +4,7 @@ import torch
 from transformers import AutoModel, AutoTokenizer
 from calflops import calculate_flops
 from dllm_cache.cache import  dLLMCacheConfig,dLLMCache
-from dllm_cache.hooks import  register_cache_Dream
+from dllm_cache.hooks import  register_cache_LLaDA
 import threading
 from queue import Queue
 import pandas as pd
@@ -16,7 +16,7 @@ def parse_args():
     parser.add_argument("--model_name", type=str, default="GSAI-ML/LLaDA-8B-Instruct", 
                     help="Name of the pretrained model to load from Hugging Face.")
     parser.add_argument("--batch_size", type=int, default=1, 
-                    help="Batch size for FLOPs calculation.默认是 1")
+                    help="Batch size for FLOPs calculation. Default is 1.")
     parser.add_argument("--prompt_interval_steps", type=int, nargs='+', default=[100], 
                     help="List of steps intervals for caching prompts.")
     parser.add_argument("--gen_interval_steps", type=int, nargs='+', default=[7], 
@@ -73,15 +73,15 @@ def run_experiment(gpu_id, args, prompt_interval_steps, gen_interval_steps, resu
     model = AutoModel.from_pretrained(args.model_name, trust_remote_code=True, torch_dtype=torch.bfloat16).to(device).eval()
     tokenizer = AutoTokenizer.from_pretrained(args.model_name, trust_remote_code=True,max_length=2048)
     
-    # 使用cache
+    # Use cache
     if args.is_feature_cache:
-        register_cache_LLADA(
+        register_cache_LLaDA(
             model,
             "model.transformer.blocks",
             test_flops=True
         )
         print(f"Cache is enabled, prompt_interval_steps={prompt_interval_steps}, gen_interval_steps={gen_interval_steps},transfer_ratio={args.transfer_ratio}")
-        FeatureCache.new_instance(**asdict(FeatureCacheConfig(
+        dLLMCache.new_instance(**asdict(dLLMCacheConfig(
                     prompt_interval_steps=prompt_interval_steps,
                     gen_interval_steps=gen_interval_steps,
                     transfer_ratio=args.transfer_ratio,
@@ -97,7 +97,7 @@ def run_experiment(gpu_id, args, prompt_interval_steps, gen_interval_steps, resu
     cache.reset_cache(int(args.avg_prompt_length))
     flops_cached_total = 0.0
     macs_cached_total = 0.0
-    print("开始计算Flops")
+    print("Starting FLOPs calculation")
     
     # Repeat FLOPs calculation with cache
     for i in range(args.steps):
@@ -120,7 +120,7 @@ def run_experiment(gpu_id, args, prompt_interval_steps, gen_interval_steps, resu
     total_flops_cached = flops_cached_total
     total_macs_cached = macs_cached_total 
     
-    # 显示结果
+    # Show results
     result = (
         f"\n| Prompt Interval Steps: {prompt_interval_steps} | Gen Interval Steps: {gen_interval_steps}|Transfer_Ratio {args.transfer_ratio}=================\n"
         f"With Cache - FLOPs/tokens: {avg_flops_cached / 1e12:.8f} TFLOPS   MACs/tokens: {avg_macs_cached / 1e12:.8f} TMACs \n"
@@ -131,25 +131,25 @@ def run_experiment(gpu_id, args, prompt_interval_steps, gen_interval_steps, resu
     input_ids_attn_mask = tokenizer(args.prompt, max_length=2048) 
     input_ids = torch.tensor(input_ids_attn_mask["input_ids"]).to(device).repeat(args.batch_size, args.avg_prompt_length)
     attention_mask = torch.tensor(input_ids_attn_mask["attention_mask"]).to(device).repeat(args.batch_size, args.avg_prompt_length)
-    # 这里是把原本一个 token 的 prompt 变成 avg_prompt_length 长度
+    # This expands the original single-token prompt to the avg_prompt_length
     total_length = input_ids.shape[1] + args.gen_length
-    print(f"平均提示词的长度:{input_ids.shape[1]},生成部分的的长度{args.gen_length}，平均总长度计算长度{total_length}")
+    print(f"Average prompt length: {input_ids.shape[1]}, Generation length: {args.gen_length}, Average total length for calculation: {total_length}")
     
     if args.is_feature_cache:
-        register_cache_LLADA(
+        register_cache_LLaDA(
             model,
             "model.transformer.blocks",
             test_flops=True
         )
         print(f"Cache is enabled, prompt_interval_steps={prompt_interval_steps}, gen_interval_steps={gen_interval_steps},transfer_ratio={args.transfer_ratio}")
-        FeatureCache.new_instance(**asdict(FeatureCacheConfig(
+        dLLMCache.new_instance(**asdict(dLLMCacheConfig(
                     prompt_interval_steps=prompt_interval_steps,
                     gen_interval_steps=gen_interval_steps,
                     transfer_ratio=args.transfer_ratio,
                     cfg_interval_steps=args.cfg_interval_steps if args.is_cfg_cache else 1,
                 )))
     
-    # 预热（避免首次运行的初始化开销）
+    # Warm-up (to avoid initialization overhead on the first run)
     cache.reset_cache(int(args.avg_prompt_length))
     with torch.no_grad():
         _ = generate(
@@ -179,9 +179,9 @@ def run_experiment(gpu_id, args, prompt_interval_steps, gen_interval_steps, resu
                 cfg_scale=args.cfg_scale
             )
             end_event.record()
-        torch.cuda.synchronize()  # CPU与GPU进行同步
-        elapsed_time_ms = start_event.elapsed_time(end_event)  # 求出间隔时间
-        times.append(elapsed_time_ms / 1000.0)  # 转换为秒
+        torch.cuda.synchronize()  # Synchronize CPU and GPU
+        elapsed_time_ms = start_event.elapsed_time(end_event)  # Calculate the elapsed time
+        times.append(elapsed_time_ms / 1000.0)  # Convert to seconds
         print(f"Run {i+1}: {elapsed_time_ms/1000.0:.3f} seconds")
     
     arg_run_time = sum(times) / len(times) / args.batch_size/args.gen_length
@@ -241,11 +241,11 @@ def run_experiment(gpu_id, args, prompt_interval_steps, gen_interval_steps, resu
     gc.collect() 
 
 def thread_worker(gpu_queue, args, prompt_interval_steps, gen_interval_steps, result_lock):
-    gpu_id = gpu_queue.get()  # 获取空闲 GPU
+    gpu_id = gpu_queue.get()  # Get available GPU
     try:
         run_experiment(gpu_id, args, prompt_interval_steps, gen_interval_steps, result_lock)
     finally:
-        gpu_queue.put(gpu_id)  # 归还 GPU
+        gpu_queue.put(gpu_id)  # Return the GPU to the queue
 
 def main():
     args = parse_args()
