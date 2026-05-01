@@ -1,8 +1,9 @@
-# dLLM-Cache: Accelerating Diffusion Large Language Models with Adaptive Caching
+# [ICML 2026] dLLM-Cache: Accelerating Diffusion Large Language Models with Adaptive Caching
 
-Official PyTorch implementation of the paper **["dLLM-Cache: Accelerating Diffusion Large Language Models with Adaptive Caching"](https://arxiv.org/abs/2506.06295)** (dLLM-Cache).
+Official PyTorch implementation of the paper **["dLLM-Cache: Accelerating Diffusion Large Language Models with Adaptive Caching"](https://arxiv.org/abs/2506.06295)** (dLLM-Cache) in ICML 2026.
 
 ## :fire: News
+- [2026/05/01] Our dLLM-Cache paper has been accepted to ICML 2026. Thanks!
 - [2025/06/15] Our dLLM-Cache is compatible with [MMaDA](https://github.com/Gen-Verse/MMaDA).
 - [2025/05/31] Our dLLM-Cache is integrated into [LLaDA-V](https://github.com/ML-GSAI/LLaDA-V).
 - [2025/05/23] The code of our paper has been released.
